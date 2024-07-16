@@ -21,6 +21,7 @@ public:
 	bool push(const type &value);
 	bool push_front(const type &value);
 	bool pop(type &value);
+	bool pop_timed(type &value, float time_to_wait);
     
     void stop();
     bool running() const {return !exited;}
@@ -121,5 +122,35 @@ bool concurrent_queue<type>::pop(type &value)
 	return true;
 }
 
+template <class type>
+bool concurrent_queue<type>::pop_timed(type &value, float time_to_wait)
+{
+	std::unique_lock<decltype (mutex)> lock(mutex);
+    auto start_time = std::chrono::steady_clock::now();
+    for( ; !exited ; )
+    {
+        condvar.wait_for(lock, std::chrono::milliseconds(100));
+	    if(!elements.empty())
+	    {
+	    	break;
+	    }
+        if(exited)
+	    {
+    	    return false;
+	    }
+        auto now = std::chrono::steady_clock::now();
+        float dt = std::chrono::duration<double>(now - start_time).count();
+        if(dt > time_to_wait)
+        {
+//            printf("%s timed out\n", __PRETTY_FUNCTION__);
+        	return false;
+        }
+    }
+    
+	value = elements.front();
+	elements.pop_front();
+
+	return true;
 }
 
+}
